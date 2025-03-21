@@ -16,7 +16,7 @@ console = Console()
 
 def get_gpu_stats():
     if not NVML_AVAILABLE:
-        return []  # No GPU monitoring if NVML is missing
+        return []  
     
     device_count = pynvml.nvmlDeviceGetCount()
     stats = []
@@ -26,7 +26,7 @@ def get_gpu_stats():
         name = pynvml.nvmlDeviceGetName(handle)
         mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
         util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        power = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000  # Convert mW to W
+        power = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000  
         temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
         driver_version = pynvml.nvmlSystemGetDriverVersion()
         cuda_version = "12.4"  # Hardcoded for now
