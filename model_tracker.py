@@ -56,8 +56,9 @@ KNOWN_MODEL_KEYWORDS = {
 
 
 def detect_model_from_cmdline(cmdline):
+    joined = " ".join(cmdline).lower()
     for keyword, model_name in KNOWN_MODEL_KEYWORDS.items():
-        if any(keyword in arg.lower() for arg in cmdline):
+        if keyword in joined:
             return model_name
     return "Unknown"
 
