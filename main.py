@@ -1,17 +1,17 @@
 import time
 import psutil
-from rich.console import Console
+from rich import box
+from rich.live import Live
+from rich.text import Text
 from rich.panel import Panel
 from rich.table import Table
-from rich.live import Live
-from rich.layout import Layout
 from rich.align import Align
-from rich.columns import Columns
-from rich import box
 from rich.console import Group
+from rich.layout import Layout
+from rich.columns import Columns
+from rich.console import Console
 from model_tracker import get_model_usage_by_pid
 from gpu_monitor import find_pids_for_gpu_index
-import psutil
 
 try:
     import pynvml
@@ -93,14 +93,12 @@ def get_cpu_stats():
         "mem_total": psutil.virtual_memory().total / (1024 ** 2)
     }
 
-from rich.text import Text
 
 def render_dashboard():
     model_map = get_model_usage_by_pid()
     gpu_stats = get_gpu_stats()
     cpu_stats = get_cpu_stats()
 
-    # Header
     time_str = time.strftime("%a %b %d %H:%M:%S %Y")
     driver = gpu_stats[0]['driver'] if gpu_stats else 'N/A'
     cuda_version = "12.4"
@@ -112,7 +110,6 @@ def render_dashboard():
         border_style="dim", title="DeepTrace"
     )
 
-    # GPU Info Table
     gpu_table = Table.grid(padding=(0, 1))
     gpu_table.add_column("GPU Info", width=55)
     gpu_table.add_column("Memory & Util", width=28)
@@ -128,14 +125,12 @@ def render_dashboard():
         ecc = f"{g['ecc']}" if g["ecc"] != "N/A" else "N/A"
         mig = "Disabled"
 
-        # Build colored lines
         left = Text(f"{name} | {bus_id} | ECC: {ecc}")
         center = Text(f"Temp: {temp} | Power: {power}\nMem: {mem_used} | Util: {util}")
         right = Text(f"Fan: {g['fan']}%\nMIG: {mig}")
 
         gpu_table.add_row(left, center, right)
 
-    # Process Table
     process_table = Table(
         title="Active GPU Processes",
         show_lines=True,
