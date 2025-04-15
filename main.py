@@ -93,63 +93,87 @@ def get_cpu_stats():
         "mem_total": psutil.virtual_memory().total / (1024 ** 2)
     }
 
+from rich.text import Text
+
 def render_dashboard():
     model_map = get_model_usage_by_pid()
     gpu_stats = get_gpu_stats()
     cpu_stats = get_cpu_stats()
 
-    table = Table(title="💻 GPU Stats", expand=True)
-    table.add_column("GPU")
-    table.add_column("Model")
-    table.add_column("UUID", no_wrap=True)
-    table.add_column("Util %")
-    table.add_column("Mem Used", justify="right")
-    table.add_column("Temp °C")
-    table.add_column("Fan %")
-    table.add_column("Power (W)")
-    table.add_column("Clock (MHz)")
-    table.add_column("TX/RX MB/s")
-    table.add_column("ECC")
+    # Header
+    time_str = time.strftime("%a %b %d %H:%M:%S %Y")
+    driver = gpu_stats[0]['driver'] if gpu_stats else 'N/A'
+    cuda_version = "12.4"
+
+    header = Panel.fit(
+        f"{time_str}\n"
+        f"[bold cyan]DeepTrace[/bold cyan]    "
+        f"[dim]Driver:[/dim] {driver}    [dim]CUDA:[/dim] {cuda_version}",
+        border_style="dim", title="DeepTrace"
+    )
+
+    # GPU Info Table
+    gpu_table = Table.grid(padding=(0, 1))
+    gpu_table.add_column("GPU Info", width=55)
+    gpu_table.add_column("Memory & Util", width=28)
+    gpu_table.add_column("ECC / MIG", width=20)
+
+    for g in gpu_stats:
+        name = f"{g['index']}  {g['name'].decode()}".ljust(30)
+        bus_id = g["uuid"].decode()[:12]
+        temp = f"{g['temp']}C"
+        power = f"{int(g['power'])}W / 400W"
+        mem_used = f"{int(g['memory_used'])}MiB / {int(g['memory_total'])}MiB"
+        util = f"{g['gpu_util']}%"
+        ecc = f"{g['ecc']}" if g["ecc"] != "N/A" else "N/A"
+        mig = "Disabled"
+
+        # Build colored lines
+        left = Text(f"{name} | {bus_id} | ECC: {ecc}")
+        center = Text(f"Temp: {temp} | Power: {power}\nMem: {mem_used} | Util: {util}")
+        right = Text(f"Fan: {g['fan']}%\nMIG: {mig}")
+
+        gpu_table.add_row(left, center, right)
+
+    # Process Table
+    process_table = Table(
+        title="Active GPU Processes",
+        show_lines=True,
+        box=box.SIMPLE_HEAD,
+        expand=True
+    )
+    process_table.add_column("GPU", style="cyan", width=5)
+    process_table.add_column("PID", width=8)
+    process_table.add_column("User", style="dim", width=10)
+    process_table.add_column("Process", width=30)
+    process_table.add_column("Model", width=15)
+    process_table.add_column("Mem Used", justify="right", width=12)
 
     for g in gpu_stats:
         pids = find_pids_for_gpu_index(g["index"])
-        model_names = [model_map.get(pid, "N/A") for pid in pids]
-        model_display = ", ".join(set(model_names)) if model_names else "None"
-        pid_display = ", ".join(str(pid) for pid in pids) if pids else "-"
-        table.add_row(
-            f"{g['index']} - {g['name'].decode()}",
-            model_display,
-            f"{g['gpu_util']}%",
-            f"{g['memory_used']:.0f}/{g['memory_total']:.0f}MB",
-            f"{g['power']:.1f}W",
-            f"{g['temp']}°C",
-            pid_display,
+        for pid in pids:
+            try:
+                p = psutil.Process(pid)
+                user = p.username().split("\\")[-1]
+                cmd = " ".join(p.cmdline())[:30]
+                mem = f"{p.memory_info().rss // (1024 ** 2)}MiB"
+                model = model_map.get(pid, "Unknown")
 
-            f"{g['memory_used']:.0f}/{g['memory_total']:.0f}MB",
-            f"{g['fan']}" if g["fan"] != "N/A" else "N/A",
-            f"{g['power']:.1f}",
-            f"{g['clock_graphics']}/{g['clock_mem']}",
-            f"{g['tx']}/{g['rx']}",
-            f"{g['ecc']}",
-            str(pids)
-        )
+                process_table.add_row(
+                    str(g["index"]), str(pid), user, cmd, model, mem
+                )
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
 
-    cpu_panel = Panel(
-        f"[bold yellow]CPU Usage:[/bold yellow] {cpu_stats['cpu_usage']}% | [bold yellow]Temp:[/bold yellow] {cpu_stats['cpu_temp']}°C\n"
-        f"[bold]Per-core:[/bold] {', '.join([f'{v:.0f}%' for v in cpu_stats['cpu_per_core']])}\n"
-        f"[bold]Memory:[/bold] {cpu_stats['mem_used']:.0f}MB / {cpu_stats['mem_total']:.0f}MB",
-        title="[bold blue]CPU Stats[/bold blue]"
-    )
-
-    return Panel.fit(table, title="[bold green]🚀 DeepTrace Monitor[/bold green]"), cpu_panel
+    return Group(header, Panel.fit(gpu_table, title="GPU Overview", border_style="green"), process_table)
 
 def main():
     with Live(console=console, refresh_per_second=1, screen=True) as live:
         while True:
-            gpu_panel, cpu_panel = render_dashboard()
-            layout = Group(cpu_panel, gpu_panel)  
+            layout = render_dashboard()
             live.update(layout)
             time.sleep(1)
+
 
 if __name__ == "__main__":
     main()
