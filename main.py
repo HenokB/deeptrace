@@ -9,6 +9,9 @@ from rich.align import Align
 from rich.columns import Columns
 from rich import box
 from rich.console import Group
+from model_tracker import get_model_usage_by_pid
+from gpu_monitor import find_pids_for_gpu_index
+import psutil
 
 try:
     import pynvml
@@ -91,11 +94,13 @@ def get_cpu_stats():
     }
 
 def render_dashboard():
+    model_map = get_model_usage_by_pid()
     gpu_stats = get_gpu_stats()
     cpu_stats = get_cpu_stats()
 
     table = Table(title="💻 GPU Stats", expand=True)
     table.add_column("GPU")
+    table.add_column("Model")
     table.add_column("UUID", no_wrap=True)
     table.add_column("Util %")
     table.add_column("Mem Used", justify="right")
@@ -107,17 +112,26 @@ def render_dashboard():
     table.add_column("ECC")
 
     for g in gpu_stats:
+        pids = find_pids_for_gpu_index(g["index"])
+        model_names = [model_map.get(pid, "N/A") for pid in pids]
+        model_display = ", ".join(set(model_names)) if model_names else "None"
+        pid_display = ", ".join(str(pid) for pid in pids) if pids else "-"
         table.add_row(
             f"{g['index']} - {g['name'].decode()}",
-            g["uuid"].decode(),
+            model_display,
             f"{g['gpu_util']}%",
             f"{g['memory_used']:.0f}/{g['memory_total']:.0f}MB",
+            f"{g['power']:.1f}W",
             f"{g['temp']}°C",
+            pid_display,
+
+            f"{g['memory_used']:.0f}/{g['memory_total']:.0f}MB",
             f"{g['fan']}" if g["fan"] != "N/A" else "N/A",
             f"{g['power']:.1f}",
             f"{g['clock_graphics']}/{g['clock_mem']}",
             f"{g['tx']}/{g['rx']}",
-            f"{g['ecc']}"
+            f"{g['ecc']}",
+            str(pids)
         )
 
     cpu_panel = Panel(
