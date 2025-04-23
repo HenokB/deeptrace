@@ -10,8 +10,8 @@ from rich.console import Group
 from rich.layout import Layout
 from rich.columns import Columns
 from rich.console import Console
-from model_tracker import get_model_usage_by_pid
 from gpu_monitor import find_pids_for_gpu_index
+from model_tracker import get_model_usage_by_pid
 
 try:
     import pynvml
@@ -92,7 +92,6 @@ def get_cpu_stats():
         "mem_used": psutil.virtual_memory().used / (1024 ** 2),
         "mem_total": psutil.virtual_memory().total / (1024 ** 2)
     }
-
 
 def render_dashboard():
     model_map = get_model_usage_by_pid()
